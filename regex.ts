@@ -8,6 +8,7 @@ export interface _Regexp {
 export class Empty implements _Regexp {
   nullable = false;
   derive(): _Regexp {
+    // D(∅) = ∅
     return new Empty();
   }
 }
@@ -15,54 +16,66 @@ export class Empty implements _Regexp {
 export class Epsilon implements _Regexp {
   nullable = true;
   derive(): _Regexp {
+    // D(ε) = ∅
     return new Empty();
   }
 }
 
 export class SymbolRegExp implements _Regexp {
   nullable = false;
-  constructor(private symbol: _Symbol) {}
-  derive(symbol: _Symbol): _Regexp {
-    return symbol === this.symbol ? new Epsilon() : new Empty();
+  // a
+  constructor(private a: _Symbol) {}
+  derive(b: _Symbol): _Regexp {
+    // D_b(a) = {
+    //   ε [if a = b]
+    //   ∅ [otherwise]
+    // }
+    return b === this.a ? new Epsilon() : new Empty();
   }
 }
 
 export class Concatenation implements _Regexp {
-  constructor(private left: _Regexp, private right: _Regexp) {}
+  // ab
+  constructor(private a: _Regexp, private b: _Regexp) {}
   get nullable(): boolean {
-    return this.left.nullable && this.right.nullable;
+    return this.a.nullable && this.b.nullable;
   }
-  derive(symbol: _Symbol): _Regexp {
-    if (this.left.nullable) {
+  derive(c: _Symbol): _Regexp {
+    // D_c(ab) = {
+    //   D_c(a)b | D_c(b) [if ε ∈ L(a)]
+    //   D_c(a)b [otherwise]
+    // }
+    if (this.a.nullable) {
+      // D_c(a)b | D_c(b)
       return new Alternation(
-        new Concatenation(this.left.derive(symbol), this.right),
-        this.right.derive(symbol)
+        new Concatenation(this.a.derive(c), this.b),
+        this.b.derive(c)
       );
-    } else {
-      // (a|b)b
-      return new Concatenation(this.left.derive(symbol), this.right);
     }
+    // D_c(a)b
+    return new Concatenation(this.a.derive(c), this.b);
   }
 }
 
 export class Alternation implements _Regexp {
-  constructor(private left: _Regexp, private right: _Regexp) {}
+  // a|b
+  constructor(private a: _Regexp, private b: _Regexp) {}
   get nullable(): boolean {
-    return this.left.nullable || this.right.nullable;
+    return this.a.nullable || this.b.nullable;
   }
-  derive(symbol: _Symbol): _Regexp {
-    return new Alternation(this.left.derive(symbol), this.right.derive(symbol));
+  derive(c: _Symbol): _Regexp {
+    // D_c(a|b) = D_c(a) | D_c(b)
+    return new Alternation(this.a.derive(c), this.b.derive(c));
   }
 }
 
 export class KleeneStar implements _Regexp {
   nullable = true;
-  constructor(private expression: _Regexp) {}
-  derive(symbol: _Symbol): _Regexp {
-    return new Concatenation(
-      this.expression.derive(symbol),
-      new KleeneStar(this.expression)
-    );
+  // a*
+  constructor(private a: _Regexp) {}
+  derive(c: _Symbol): _Regexp {
+    // D_c(a*) = D_c(a)a*
+    return new Concatenation(this.a.derive(c), new KleeneStar(this.a));
   }
 }
 
